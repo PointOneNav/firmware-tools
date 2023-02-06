@@ -72,8 +72,6 @@ def synchronize(ser: Serial, timeout=10):
                 resp_data = ser.read(4)
                 if len(resp_data) == 4 and resp_data == RSP_WORD2_BYTES:
                     return True
-                else:
-                    return False
             c = ser.read()
     return False
 
