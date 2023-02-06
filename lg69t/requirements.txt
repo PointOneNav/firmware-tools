@@ -1,2 +1,2 @@
-https://github.com/PointOneNav/fusion-engine-client/archive/af10b5ae63cd18a308dcb693f4c020bf66d3242b.zip#egg=fusion-engine-client&subdirectory=python
+https://github.com/PointOneNav/fusion-engine-client/archive/v1.14.0.zip#egg=fusion-engine-client&subdirectory=python
 pyserial

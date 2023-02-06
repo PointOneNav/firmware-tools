@@ -23,12 +23,14 @@ To update the Application and GNSS firmware:
 
  Replace ```/dev/ttyUSB0``` with the serial port connected to the device and ```quectel-lg69t-am-0.XX.0_upg.bin``` and ```lg69t_teseo_A.B.CC.D_sta.bin``` with the application image and gnss image files respectively.
 
+If the board is not currently running valid application code, `upgrade_test.py` should be run with the `--manual-reboot` flag. In this case, immediately after running the script the board should be manually power cycled.
+
 ## Bootloader
 Note: In general, you should never need to reprogram the bootloader. Doing so will completely erase the chip, including any saved configuration, calibration, and the application firmware.
 
 To program the bootloader:
 - Run ```pip install stm32loader```
-- Press and HOLD the BOOT button while powering on the module. 
+- Press and HOLD the BOOT button while powering on the module.
 - Release the BOOT button after the device is powered up.
 - Run ```stm32loader -p /dev/ttyUSB0 -e -w -v -a 0x08000000 quectel-bootloader-A.B.C.bin```
 - Press the RESET button to complete the process.
