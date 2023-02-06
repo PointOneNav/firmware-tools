@@ -2,12 +2,13 @@
 
 import argparse
 import struct
+import sys
 import time
 import zlib
 from enum import Enum, auto
 
 from serial import Serial
-from fusion_engine_client.parsers import FusionEngineEncoder
+from fusion_engine_client.parsers import FusionEngineEncoder, FusionEngineDecoder
 from fusion_engine_client.messages import *
 
 SYNC_WORD1 = 0x514C1309
@@ -37,15 +38,27 @@ HEADER = b'\xAA'
 TAIL = b'\x55'
 
 
-def send_reboot(ser: Serial):
+def send_reboot(ser: Serial, timeout=10):
+    start_time = time.time()
     reset_message = ResetRequest(ResetRequest.REBOOT_NAVIGATION_PROCESSOR)
     encoder = FusionEngineEncoder()
     data = encoder.encode_message(reset_message)
     ser.write(data)
     ser.flush()
+    decoder = FusionEngineDecoder()
+    while time.time() < start_time + timeout:
+        messages = decoder.on_data(ser.read_all())
+        for header, payload in messages:
+            if header.message_type == CommandResponseMessage.MESSAGE_TYPE:
+                if payload.response == Response.OK:
+                    return True
+                else:
+                    print(f'Reboot Command Rejected: {payload.response}')
+                    return False
+    return False
 
 
-def synchronize(ser: Serial, timeout=5):
+def synchronize(ser: Serial, timeout=10):
     start_time = time.time()
     ser.timeout = 0.05
     resp_data = b'\x00\x00\x00\x00'
@@ -152,16 +165,21 @@ class UpgradeType(Enum):
     GNSS = auto()
 
 
-def Upgrade(port_name: str, bin_path: str, upgrade_type: UpgradeType):
+def Upgrade(port_name: str, bin_path: str, upgrade_type: UpgradeType, should_send_reboot: bool):
     class_id = {
         UpgradeType.APP: CLASS_APP,
         UpgradeType.GNSS: CLASS_GNSS,
     }[upgrade_type]
 
     with Serial(port_name, baudrate=460800) as ser:
-        print('Rebooting (or user press reboot)')
-        send_reboot(ser)
-        send_reboot(ser)
+        if should_send_reboot:
+            print('Sending Reboot Command')
+            if not send_reboot(ser):
+                print('Reboot Command Failed')
+                return False
+            else:
+                print('Reboot Command Success')
+        # Note that the reboot command can take over 5 seconds to kick in.
         if not synchronize(ser):
             print('Sync Failed')
             return False
@@ -208,16 +226,21 @@ def print_bytes(byte_data):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gnss', type=str, metavar="FILE", default=None, help="The path to the GNSS (Teseo) firmware file to be loaded.")
-    parser.add_argument('--app', type=str, metavar="FILE", default=None, help="The path to the application firmware file to be loaded.")
+    parser.add_argument('--gnss', type=str, metavar="FILE", default=None,
+                        help="The path to the GNSS (Teseo) firmware file to be loaded.")
+    parser.add_argument('--app', type=str, metavar="FILE", default=None,
+                        help="The path to the application firmware file to be loaded.")
     parser.add_argument('--port', type=str, default='/dev/ttyUSB0', help="The serial port of the device.")
-    
+    parser.add_argument('-m', '--manual-reboot', action='store_true',
+                        help="Don't try to send a software reboot. User must manually reset the board.")
+
     args = parser.parse_args()
 
     port_name = args.port
     gnss_bin_path = args.gnss
     app_bin_path = args.app
-     
+    should_send_reboot = not args.manual_reboot
+
     if app_bin_path is None and gnss_bin_path is None:
         print('You must specify gnss or app files to upgrade.')
         sys.exit(1)
@@ -226,13 +249,13 @@ def main():
 
     if gnss_bin_path is not None:
         print('Upgrading GNSS...')
-        if not Upgrade(port_name, gnss_bin_path, UpgradeType.GNSS):
+        if not Upgrade(port_name, gnss_bin_path, UpgradeType.GNSS, should_send_reboot):
             sys.exit(2)
     if app_bin_path is not None:
         print('Upgrading App...')
-        if not Upgrade(port_name, app_bin_path, UpgradeType.APP):
+        if not Upgrade(port_name, app_bin_path, UpgradeType.APP, should_send_reboot):
             sys.exit(2)
 
-    
+
 if __name__ == '__main__':
     main()
