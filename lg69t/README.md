@@ -11,7 +11,7 @@ The tools require Python 3. They work in Linux, Windows and Mac.
 Before using the tools, install the Python requirements:
 
 ```
-python3 -m pip install -I -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 And download the latest firmware package from [Point One's Developer Portal](https://pointonenav.com/docs/).
