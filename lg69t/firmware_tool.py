@@ -182,7 +182,7 @@ def Upgrade(port_name: str, bin_path: str, upgrade_type: UpgradeType, should_sen
 
         # Note that the reboot command can take over 5 seconds to kick in.
         if not synchronize(ser):
-            print('Sync Failed')
+            print('Sync Timed Out')
             return False
         else:
             print('Sync Success')
