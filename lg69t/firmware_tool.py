@@ -177,9 +177,12 @@ def Upgrade(port_name: str, bin_path: str, upgrade_type: UpgradeType, should_sen
                 return False
             else:
                 print('Reboot Command Success')
+        else:
+            print('Please reboot the device...')
+
         # Note that the reboot command can take over 5 seconds to kick in.
         if not synchronize(ser):
-            print('Sync Failed')
+            print('Sync Timed Out')
             return False
         else:
             print('Sync Success')
@@ -210,6 +213,8 @@ def Upgrade(port_name: str, bin_path: str, upgrade_type: UpgradeType, should_sen
         print('Sending Data')
         if send_firmware(ser, class_id, firmware_data) is True:
             print('Update Success')
+            if not should_send_reboot:
+                print('Please reboot the device...')
             return True
         else:
             print('Update Failed')
