@@ -22,8 +22,8 @@ And download the latest firmware package from [Point One's Developer Portal](htt
 To update the Application and GNSS firmware:
 
 ```
-python3 upgrade_test.py --port=/dev/ttyUSB0 --app=/path/to/quectel-lg69t-am-0.XX.0_upg.bin
-python3 upgrade_test.py --port=/dev/ttyUSB0 --gnss=/path/to/lg69t_teseo_A.B.CC.D_sta.bin
+python3 firmware_tool.py --port=/dev/ttyUSB0 --app=/path/to/quectel-lg69t-am-0.XX.0_upg.bin
+python3 firmware_tool.py --port=/dev/ttyUSB0 --gnss=/path/to/lg69t_teseo_A.B.CC.D_sta.bin
 ```
 
 Replace `/dev/ttyUSB0` with the serial port connected to the device (use the appropriate COM port number in Windows, e.g., `COM1`).
