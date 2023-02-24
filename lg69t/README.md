@@ -16,21 +16,22 @@ python3 -m pip install -r requirements.txt
 
 And download the latest firmware package from [Point One's Developer Portal](https://pointonenav.com/docs/).
 
-
 ## Application and GNSS
 
-To update the Application and GNSS firmware:
+To update the Application and GNSS firmware, you must use UART1 (`Standard COM Port` for Windows, typically `/dev/ttyUSB1` in Linux for P1SDK):
 
 ```
-python3 firmware_tool.py --port=/dev/ttyUSB0 --app=/path/to/quectel-lg69t-am-0.XX.0_upg.bin
-python3 firmware_tool.py --port=/dev/ttyUSB0 --gnss=/path/to/lg69t_teseo_A.B.CC.D_sta.bin
+python3 firmware_tool.py --port=/dev/ttyUSB1 --app=/path/to/quectel-lg69t-am-0.XX.0_upg.bin
+python3 firmware_tool.py --port=/dev/ttyUSB1 --gnss=/path/to/lg69t_teseo_A.B.CC.D_sta.bin
 ```
 
-Replace `/dev/ttyUSB0` with the serial port connected to the device (use the appropriate COM port number in Windows, e.g., `COM1`).
+Replace `/dev/ttyUSB1` with the serial port connected to the device via UART1 (use the appropriate COM port number in Windows, e.g., `Standard COM Port`).
 
-Replace `/path/to/quectel-lg69t-am-0.XX.0_upg.bin` and `/path/to/lg69t_teseo_A.B.CC.D_sta.bin` with the path to the application image and GNSS image files respectively.
+Replace `/path/to/quectel-lg69t-am-0.XX.0_upg.bin` and `/path/to/lg69t_teseo_A.B.CC.D_sta.bin` with the path to the application image and GNSS image files respectively. The device must be rebooted after each command is executed successfully.
 
-If the board is not currently running valid application code, `upgrade_test.py` should be run with the `--manual-reboot` flag. In this case, immediately after running the script the board should be manually power cycled.
+## Considerations
+
+If the reset command is not working, the `firmware_tool.py` should be run with the `--manual-reboot` flag. When prompted, manually power cycle the board after the script exits.
 
 ## Bootloader
 
@@ -42,3 +43,4 @@ To program the bootloader:
 - Release the BOOT button after the device is powered up.
 - Run `stm32loader -p /dev/ttyUSB0 -e -w -v -a 0x08000000 quectel-bootloader-A.B.C.bin`
 - Press the RESET button to complete the process.
+
