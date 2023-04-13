@@ -6,8 +6,8 @@ import struct
 import sys
 import time
 import zlib
-from zipfile import ZipFile
 from enum import Enum, auto
+from zipfile import ZipFile
 
 from serial import Serial
 from fusion_engine_client.parsers import FusionEngineEncoder, FusionEngineDecoder
@@ -165,7 +165,7 @@ class UpgradeType(Enum):
     GNSS = auto()
 
 
-def Upgrade(port_name: str, bin_path: str, upgrade_type: UpgradeType, should_send_reboot: bool):
+def Upgrade(port_name: str, bin_file, upgrade_type: UpgradeType, should_send_reboot: bool):
     class_id = {
         UpgradeType.APP: CLASS_APP,
         UpgradeType.GNSS: CLASS_GNSS,
@@ -195,8 +195,7 @@ def Upgrade(port_name: str, bin_path: str, upgrade_type: UpgradeType, should_sen
         if not get_response(class_id, MSG_ID_FIRMWARE_ADDRESS, ser):
             return False
 
-        with open(bin_path, 'rb') as fd:
-            firmware_data = fd.read()
+        firmware_data = bin_file.read()
 
         print('Sending Firmware Info')
         if upgrade_type == UpgradeType.GNSS:
@@ -228,26 +227,36 @@ def print_bytes(byte_data):
         [f'0x{c:02X}' for c in byte_data]
     ))
 
-def extract_fw_files(p1fw_path):
-    fw_files = {}
-    for filename in os.listdir(p1fw_path):
-        dir = os.path.join(p1fw_path, filename)
-        if filename.endswith('upg.bin'):
-            fw_files['app'] = dir
-        elif filename.endswith('sta.bin'):
-            fw_files['gnss'] = dir
-    if len(fw_files) == 0:
+def extract_fw_files(p1fw):
+    app_bin_fd = None
+    gnss_bin_fd = None
+    if isinstance(p1fw, ZipFile):
+        for filename in p1fw.namelist():
+            if filename.endswith('upg.bin'):
+                app_bin_fd = p1fw.open(filename, 'r')
+            elif filename.endswith('sta.bin'):
+                gnss_bin_fd = p1fw.open(filename, 'r')
+    else:
+        for filename in os.listdir(p1fw):
+            dir = os.path.join(p1fw, filename)
+            if filename.endswith('upg.bin'):
+                app_bin_fd = open(dir, 'rb')
+            elif filename.endswith('sta.bin'):
+                gnss_bin_fd = open(dir, 'rb')
+
+    if app_bin_fd is None and gnss_bin_fd is None:
         print('GNSS and application firmware files not found in given p1fw path. Aborting.')
         sys.exit(1)
-    elif 'app' not in fw_files:
+    elif app_bin_fd is None:
         print('Application firmware file not found in given p1fw path. Aborting.')
         sys.exit(1)
-    elif 'gnss' not in fw_files:
+    elif gnss_bin_fd is None:
         print('GNSS firmware file not found in given p1fw path. Aborting.')
         sys.exit(1)
 
     print('GNSS and application firmware files found in given p1fw path. Will use these files to upgrade.')
-    return fw_files
+    return app_bin_fd, gnss_bin_fd
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -275,33 +284,40 @@ def main():
 
     print(f"Starting upgrade on device {port_name}.")
 
-    fw_files = {}
+    p1fw = None
+    app_bin_fd = None
+    gnss_bin_fd = None
     if p1fw_path is not None:
         try:
-            with ZipFile(p1fw_path, 'r') as f:
-                f.extractall('p1fw')
-                p1fw = os.path.join(os.getcwd(), 'p1fw')
-                fw_files = extract_fw_files(p1fw)
+            p1fw = ZipFile(p1fw_path, 'r')
         except:
             if os.path.exists(p1fw_path):
-                fw_files = extract_fw_files(p1fw_path)
+                p1fw = p1fw_path
             else:
                 print("Directory %s not found." % p1fw_path)
                 sys.exit(2)
 
-    if gnss_bin_path is not None or 'gnss' in fw_files:
-        if 'gnss' in fw_files:
-            if gnss_bin_path is not None:
-                print('Ignoring provided GNSS bin path, as p1fw path was provided.')
-            gnss_bin_path = fw_files['gnss']
+        if p1fw:
+            app_bin_fd, gnss_bin_fd = extract_fw_files(p1fw)
+
+    if gnss_bin_fd is not None:
+        if gnss_bin_path is not None:
+            print('Ignoring provided GNSS bin path, as p1fw path was provided.')
+    elif gnss_bin_path is not None:
+        gnss_bin_fd = open(gnss_bin_path)
+
+    if gnss_bin_fd:
         print('Upgrading GNSS...')
         if not Upgrade(port_name, gnss_bin_path, UpgradeType.GNSS, should_send_reboot):
             sys.exit(2)
-    if app_bin_path is not None or 'app' in fw_files:
-        if 'app' in fw_files:
-            if app_bin_path is not None:
-                print('Ignoring provided application bin path, as p1fw path was provided.')
-            app_bin_path = fw_files['app']
+
+    if app_bin_fd is not None:
+        if app_bin_path is not None:
+            print('Ignoring provided application bin path, as p1fw path was provided.')
+    elif app_bin_path is not None:
+        app_bin_fd = open(app_bin_path)
+
+    if app_bin_fd:
         print('Upgrading App...')
         if not Upgrade(port_name, app_bin_path, UpgradeType.APP, should_send_reboot):
             sys.exit(2)
