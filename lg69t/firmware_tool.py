@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import struct
 import sys
 import time
 import zlib
+from zipfile import ZipFile
 from enum import Enum, auto
 
 from serial import Serial
@@ -226,9 +228,31 @@ def print_bytes(byte_data):
         [f'0x{c:02X}' for c in byte_data]
     ))
 
+def extract_fw_files(p1fw_path):
+    fw_files = {}
+    for filename in os.listdir(p1fw_path):
+        dir = os.path.join(p1fw_path, filename)
+        if filename.endswith('upg.bin'):
+            fw_files['app'] = dir
+        elif filename.endswith('sta.bin'):
+            fw_files['gnss'] = dir
+    if len(fw_files) == 0:
+        print('GNSS and application firmware files not found in given p1fw path. Aborting.')
+        sys.exit(1)
+    elif 'app' not in fw_files:
+        print('Application firmware file not found in given p1fw path. Aborting.')
+        sys.exit(1)
+    elif 'gnss' not in fw_files:
+        print('GNSS firmware file not found in given p1fw path. Aborting.')
+        sys.exit(1)
+
+    print('GNSS and application firmware files found in given p1fw path. Will use these files to upgrade.')
+    return fw_files
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--p1fw', type=str, metavar="FILE", default=None,
+                        help="The path to the .p1fw file to be loaded.")
     parser.add_argument('--gnss', type=str, metavar="FILE", default=None,
                         help="The path to the GNSS (Teseo) firmware file to be loaded.")
     parser.add_argument('--app', type=str, metavar="FILE", default=None,
@@ -240,21 +264,44 @@ def main():
     args = parser.parse_args()
 
     port_name = args.port
+    p1fw_path = args.p1fw
     gnss_bin_path = args.gnss
     app_bin_path = args.app
     should_send_reboot = not args.manual_reboot
 
-    if app_bin_path is None and gnss_bin_path is None:
-        print('You must specify gnss or app files to upgrade.')
+    if p1fw_path is None and app_bin_path is None and gnss_bin_path is None:
+        print('You must specify p1fw file, gnss file, or app file to upgrade.')
         sys.exit(1)
 
     print(f"Starting upgrade on device {port_name}.")
 
-    if gnss_bin_path is not None:
+    fw_files = {}
+    if p1fw_path is not None:
+        try:
+            with ZipFile(p1fw_path, 'r') as f:
+                f.extractall('p1fw')
+                p1fw = os.path.join(os.getcwd(), 'p1fw')
+                fw_files = extract_fw_files(p1fw)
+        except:
+            if os.path.exists(p1fw_path):
+                fw_files = extract_fw_files(p1fw_path)
+            else:
+                print("Directory %s not found." % p1fw_path)
+                sys.exit(2)
+
+    if gnss_bin_path is not None or 'gnss' in fw_files:
+        if 'gnss' in fw_files:
+            if gnss_bin_path is not None:
+                print('Ignoring provided GNSS bin path, as p1fw path was provided.')
+            gnss_bin_path = fw_files['gnss']
         print('Upgrading GNSS...')
         if not Upgrade(port_name, gnss_bin_path, UpgradeType.GNSS, should_send_reboot):
             sys.exit(2)
-    if app_bin_path is not None:
+    if app_bin_path is not None or 'app' in fw_files:
+        if 'app' in fw_files:
+            if app_bin_path is not None:
+                print('Ignoring provided application bin path, as p1fw path was provided.')
+            app_bin_path = fw_files['app']
         print('Upgrading App...')
         if not Upgrade(port_name, app_bin_path, UpgradeType.APP, should_send_reboot):
             sys.exit(2)
