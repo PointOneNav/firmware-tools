@@ -195,7 +195,7 @@ def Upgrade(port_name: str, bin_file, upgrade_type: UpgradeType, should_send_reb
         if not get_response(class_id, MSG_ID_FIRMWARE_ADDRESS, ser):
             return False
 
-        firmware_data = bin_file.read()
+        firmware_data = bin_file
 
         print('Sending Firmware Info')
         if upgrade_type == UpgradeType.GNSS:
@@ -308,7 +308,7 @@ def main():
 
     if gnss_bin_fd:
         print('Upgrading GNSS...')
-        if not Upgrade(port_name, gnss_bin_path, UpgradeType.GNSS, should_send_reboot):
+        if not Upgrade(port_name, gnss_bin_fd, UpgradeType.GNSS, should_send_reboot):
             sys.exit(2)
 
     if app_bin_fd is not None:
@@ -319,7 +319,7 @@ def main():
 
     if app_bin_fd:
         print('Upgrading App...')
-        if not Upgrade(port_name, app_bin_path, UpgradeType.APP, should_send_reboot):
+        if not Upgrade(port_name, app_bin_fd, UpgradeType.APP, should_send_reboot):
             sys.exit(2)
 
 
