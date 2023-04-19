@@ -42,10 +42,10 @@ HEADER = b'\xAA'
 TAIL = b'\x55'
 
 
-def send_reboot(ser: Serial, timeout=10):
+def send_reboot(ser: Serial, timeout=10, reboot_flag=ResetRequest.REBOOT_NAVIGATION_PROCESSOR):
     start_time = time.time()
     last_send_time = 0
-    reset_message = ResetRequest(ResetRequest.REBOOT_NAVIGATION_PROCESSOR)
+    reset_message = ResetRequest(reboot_flag)
     encoder = FusionEngineEncoder()
     data = encoder.encode_message(reset_message)
     decoder = FusionEngineDecoder()
@@ -219,12 +219,14 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
         print('Sending Data')
         if send_firmware(ser, class_id, firmware_data) is True:
             print('Update Success')
-            if not send_reboot(ser):
+            if not should_send_reboot:
                 print('Please reboot the device...')
+            else:
+               print('Waiting for device to reboot...')
+               if not send_reboot(ser, reboot_flag=0):
+                  return False
+               print('Device rebooted.')
             return True
-        else:
-            print('Update Failed')
-            return False
 
 
 def print_bytes(byte_data):
@@ -337,7 +339,7 @@ def main():
         if gnss_bin_path is not None:
             print('Ignoring provided GNSS bin path, as p1fw path was provided.')
     elif gnss_bin_path is not None:
-        gnss_bin_fd = open(gnss_bin_path)
+        gnss_bin_fd = open(gnss_bin_path, 'rb')
 
     if gnss_bin_fd:
         print('Upgrading GNSS...')
@@ -348,7 +350,7 @@ def main():
         if app_bin_path is not None:
             print('Ignoring provided application bin path, as p1fw path was provided.')
     elif app_bin_path is not None:
-        app_bin_fd = open(app_bin_path)
+        app_bin_fd = open(app_bin_path, 'rb')
 
     if app_bin_fd:
         print('Upgrading App...')
