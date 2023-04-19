@@ -318,9 +318,13 @@ def main():
             if os.path.isdir(p1fw_path):
                 p1fw = p1fw_path
             else:
-                p1fw = ZipFile(p1fw_path, 'r')
+                try:
+                    p1fw = ZipFile(p1fw_path, 'r')
+                except:
+                    print('Provided path does not lead to a zip file or a directory.')
+                    sys.exit(2)
         else:
-            print("Provided path %s not found." % p1fw_path)
+            print('Provided path %s not found.' % p1fw_path)
             sys.exit(2)
 
     if p1fw:
