@@ -44,13 +44,16 @@ TAIL = b'\x55'
 
 def send_reboot(ser: Serial, timeout=10):
     start_time = time.time()
+    last_send_time = 0
     reset_message = ResetRequest(ResetRequest.REBOOT_NAVIGATION_PROCESSOR)
     encoder = FusionEngineEncoder()
     data = encoder.encode_message(reset_message)
-    ser.write(data)
-    ser.flush()
     decoder = FusionEngineDecoder()
     while time.time() < start_time + timeout:
+        if time.time() > last_send_time + 0.5:
+            ser.write(data)
+            ser.flush()
+            last_send_time = time.time()
         messages = decoder.on_data(ser.read_all())
         for header, payload in messages:
             if header.message_type == CommandResponseMessage.MESSAGE_TYPE:
