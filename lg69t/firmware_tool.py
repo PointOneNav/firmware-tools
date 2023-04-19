@@ -5,6 +5,7 @@ import os
 import struct
 import sys
 import time
+import typing
 import zlib
 from enum import Enum, auto
 from zipfile import ZipFile
@@ -165,7 +166,7 @@ class UpgradeType(Enum):
     GNSS = auto()
 
 
-def Upgrade(port_name: str, bin_file, upgrade_type: UpgradeType, should_send_reboot: bool):
+def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType, should_send_reboot: bool):
     class_id = {
         UpgradeType.APP: CLASS_APP,
         UpgradeType.GNSS: CLASS_GNSS,
@@ -195,7 +196,7 @@ def Upgrade(port_name: str, bin_file, upgrade_type: UpgradeType, should_send_reb
         if not get_response(class_id, MSG_ID_FIRMWARE_ADDRESS, ser):
             return False
 
-        firmware_data = bin_file
+        firmware_data = bin_file.read()
 
         print('Sending Firmware Info')
         if upgrade_type == UpgradeType.GNSS:
@@ -288,17 +289,19 @@ def main():
     app_bin_fd = None
     gnss_bin_fd = None
     if p1fw_path is not None:
-        try:
-            p1fw = ZipFile(p1fw_path, 'r')
-        except:
-            if os.path.exists(p1fw_path):
+        if os.path.exists(p1fw_path):
+            # Check if a directory is what was provided. If not, then it is assumed that a compressed
+            # file is what was provided (this is the expected use case).
+            if os.path.isdir(p1fw_path):
                 p1fw = p1fw_path
             else:
-                print("Directory %s not found." % p1fw_path)
-                sys.exit(2)
+                p1fw = ZipFile(p1fw_path, 'r')
+        else:
+            print("Provided path %s not found." % p1fw_path)
+            sys.exit(2)
 
-        if p1fw:
-            app_bin_fd, gnss_bin_fd = extract_fw_files(p1fw)
+    if p1fw:
+        app_bin_fd, gnss_bin_fd = extract_fw_files(p1fw)
 
     if gnss_bin_fd is not None:
         if gnss_bin_path is not None:

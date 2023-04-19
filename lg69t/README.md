@@ -20,13 +20,18 @@ And download the latest firmware package from [Point One's Developer Portal](htt
 
 To update the Application and GNSS firmware, you must use UART1 (`Standard COM Port` for Windows, typically `/dev/ttyUSB1` in Linux for P1SDK).
 
-To update via `p1fw` path:
+**To update via `p1fw` path:**
 
 ```
 python3 firmware_tool.py --port=/dev/ttyUSB1 --p1fw=/path/to/quectel-lg69t-am-0.XX.0.p1fw
 ```
 
-To update via individual `.bin` files:
+Replace `/dev/ttyUSB1` with the serial port connected to the device via UART1 (use the appropriate COM port number in Windows, e.g., `Standard COM Port`).
+
+Replace `/path/to/quectel-lg69t-am-0.XX.0.p1fw` with the path to the `p1fw` file. If the `p1fw` was decompressed,
+the resulting directory may be passed here as well.
+
+**To update via individual `.bin` files:**
 
 ```
 python3 firmware_tool.py --port=/dev/ttyUSB1 --app=/path/to/quectel-lg69t-am-0.XX.0_upg.bin
@@ -35,8 +40,7 @@ python3 firmware_tool.py --port=/dev/ttyUSB1 --gnss=/path/to/lg69t_teseo_A.B.CC.
 
 Replace `/dev/ttyUSB1` with the serial port connected to the device via UART1 (use the appropriate COM port number in Windows, e.g., `Standard COM Port`).
 
-If upgrading via a `p1fw` file, replace `/path/to/quectel-lg69t-am-0.XX.0.p1fw` with the path to the `p1fw` file. If upgrading via
-individual application and GNSS firmware binary files, replace `/path/to/quectel-lg69t-am-0.XX.0_upg.bin` and `/path/to/lg69t_teseo_A.B.CC.D_sta.bin` with the path to the application image and GNSS image files respectively. The device must be rebooted after each command is executed successfully.
+Replace `/path/to/quectel-lg69t-am-0.XX.0_upg.bin` and `/path/to/lg69t_teseo_A.B.CC.D_sta.bin` with the path to the application image and GNSS image files respectively. The device must be rebooted after each command is executed successfully.
 
 ## Considerations
 
