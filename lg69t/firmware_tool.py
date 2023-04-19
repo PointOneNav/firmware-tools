@@ -219,7 +219,7 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
         print('Sending Data')
         if send_firmware(ser, class_id, firmware_data) is True:
             print('Update Success')
-            if not should_send_reboot:
+            if not send_reboot(ser):
                 print('Please reboot the device...')
             return True
         else:
