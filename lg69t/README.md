@@ -18,7 +18,20 @@ And download the latest firmware package from [Point One's Developer Portal](htt
 
 ## Application and GNSS
 
-To update the Application and GNSS firmware, you must use UART1 (`Standard COM Port` for Windows, typically `/dev/ttyUSB1` in Linux for P1SDK):
+To update the Application and GNSS firmware, you must use UART1 (`Standard COM Port` for Windows, typically `/dev/ttyUSB1` in Linux for P1SDK).
+
+**To update via `p1fw` path:**
+
+```
+python3 firmware_tool.py --port=/dev/ttyUSB1 --p1fw=/path/to/quectel-lg69t-am-0.XX.0.p1fw
+```
+
+Replace `/dev/ttyUSB1` with the serial port connected to the device via UART1 (use the appropriate COM port number in Windows, e.g., `Standard COM Port`).
+
+Replace `/path/to/quectel-lg69t-am-0.XX.0.p1fw` with the path to the `p1fw` file. If the `p1fw` was decompressed,
+the resulting directory may be passed here as well.
+
+**To update via individual `.bin` files:**
 
 ```
 python3 firmware_tool.py --port=/dev/ttyUSB1 --app=/path/to/quectel-lg69t-am-0.XX.0_upg.bin
@@ -43,4 +56,3 @@ To program the bootloader:
 - Release the BOOT button after the device is powered up.
 - Run `stm32loader -p /dev/ttyUSB0 -e -w -v -a 0x08000000 quectel-bootloader-A.B.C.bin`
 - Press the RESET button to complete the process.
-
