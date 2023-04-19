@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import os
 import struct
 import sys
@@ -232,18 +233,40 @@ def extract_fw_files(p1fw):
     app_bin_fd = None
     gnss_bin_fd = None
     if isinstance(p1fw, ZipFile):
-        for filename in p1fw.namelist():
-            if filename.endswith('upg.bin'):
-                app_bin_fd = p1fw.open(filename, 'r')
-            elif filename.endswith('sta.bin'):
-                gnss_bin_fd = p1fw.open(filename, 'r')
+        # Extract filenames from info.json file.
+        if 'info.json' in p1fw.namelist():
+            info_json = json.load(p1fw.open('info.json', 'r'))
+
+            app_filename = info_json['fusion_engine']['filename']
+            gnss_filename = info_json['gnss_receiver']['filename']
+
+            if app_filename in p1fw.namelist():
+                app_bin_fd = p1fw.open(app_filename, 'r')
+
+            if gnss_filename in p1fw.namelist():
+                gnss_bin_fd = p1fw.open(gnss_filename, 'r')
+        else:
+            print('No info.json file found. Aborting.')
+            sys.exit(1)
     else:
-        for filename in os.listdir(p1fw):
-            dir = os.path.join(p1fw, filename)
-            if filename.endswith('upg.bin'):
-                app_bin_fd = open(dir, 'rb')
-            elif filename.endswith('sta.bin'):
-                gnss_bin_fd = open(dir, 'rb')
+        if os.path.exists(os.path.join(p1fw, 'info.json')):
+            # Extract filenames from info.json file.
+            info_json_path = os.path.join(p1fw, 'info.json')
+            info_json = json.load(open(info_json_path))
+
+            app_filename = info_json['fusion_engine']['filename']
+            gnss_filename = info_json['gnss_receiver']['filename']
+            app_path = os.path.join(p1fw, app_filename)
+            gnss_path = os.path.join(p1fw, gnss_filename)
+
+            if os.path.exists(app_path):
+                app_bin_fd = open(os.path.join(p1fw, app_filename), 'rb')
+
+            if os.path.exists(gnss_path):
+                gnss_bin_fd = open(os.path.join(p1fw, gnss_filename), 'rb')
+        else:
+            print('No info.json file found. Aborting.')
+            sys.exit(1)
 
     if app_bin_fd is None and gnss_bin_fd is None:
         print('GNSS and application firmware files not found in given p1fw path. Aborting.')
