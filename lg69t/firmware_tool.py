@@ -299,6 +299,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--p1fw', type=str, metavar="FILE", default=None,
                         help="The path to the .p1fw file to be loaded.")
+    parser.add_argument('--p1fw-mode', type=str, metavar="MODE", action='append', choices=('gnss', 'app'),
+                        help="The type of update to perform when using a .p1fw file: gnss, app. May be specified "
+                             "multiple times. For example: --p1fw-mode=gnss --p1fw-mode=app (default)")
     parser.add_argument('--gnss', type=str, metavar="FILE", default=None,
                         help="The path to the GNSS (Teseo) firmware file to be loaded.")
     parser.add_argument('--app', type=str, metavar="FILE", default=None,
@@ -340,8 +343,16 @@ def main():
             print('Provided path %s not found.' % p1fw_path)
             sys.exit(2)
 
-    if p1fw:
+    if p1fw is not None:
         app_bin_fd, gnss_bin_fd = extract_fw_files(p1fw)
+
+        if args.p1fw_mode is None:
+            args.p1fw_mode = ('gnss', 'app')
+
+        if 'app' not in args.p1fw_mode:
+            app_bin_fd = None
+        if 'gnss' not in args.p1fw_mode:
+            gnss_bin_fd = None
 
     if gnss_bin_fd is not None:
         if gnss_bin_path is not None:
