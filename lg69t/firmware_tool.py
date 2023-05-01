@@ -170,7 +170,8 @@ class UpgradeType(Enum):
     GNSS = auto()
 
 
-def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType, should_send_reboot: bool):
+def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType, should_send_reboot: bool,
+            wait_for_reboot: bool = False):
     class_id = {
         UpgradeType.APP: CLASS_APP,
         UpgradeType.GNSS: CLASS_GNSS,
@@ -178,7 +179,7 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
 
     with Serial(port_name, baudrate=460800) as ser:
         if should_send_reboot:
-            print('Sending Reboot Command')
+            print('Rebooting the device...')
             if not send_reboot(ser):
                 print('Reboot Command Failed')
                 return False
@@ -219,13 +220,20 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
         print('Sending Data')
         if send_firmware(ser, class_id, firmware_data) is True:
             print('Update Success')
-            if not should_send_reboot:
-                print('Please reboot the device...')
+            if should_send_reboot:
+                # Send a no-op reset request message and wait for a response. This won't actually restart the device,
+                # it just waits for it to start on its own after the update completes.
+                print('Waiting for software to start...')
+                if send_reboot(ser, reboot_flag=0):
+                    print('Device rebooted.')
+                else:
+                    print('Timed out waiting for device. Please reboot the device manually.')
+                    if wait_for_reboot:
+                        input('Press any key to continue...')
             else:
-               print('Waiting for device to reboot...')
-               if not send_reboot(ser, reboot_flag=0):
-                  return False
-               print('Device rebooted.')
+                print('Please reboot the device...')
+                if wait_for_reboot:
+                    input('Press any key to continue...')
             return True
 
 
@@ -291,6 +299,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--p1fw', type=str, metavar="FILE", default=None,
                         help="The path to the .p1fw file to be loaded.")
+    parser.add_argument('--p1fw-mode', type=str, metavar="MODE", action='append', choices=('gnss', 'app'),
+                        help="The type of update to perform when using a .p1fw file: gnss, app. May be specified "
+                             "multiple times. For example: --p1fw-mode=gnss --p1fw-mode=app (default)")
     parser.add_argument('--gnss', type=str, metavar="FILE", default=None,
                         help="The path to the GNSS (Teseo) firmware file to be loaded.")
     parser.add_argument('--app', type=str, metavar="FILE", default=None,
@@ -332,8 +343,16 @@ def main():
             print('Provided path %s not found.' % p1fw_path)
             sys.exit(2)
 
-    if p1fw:
+    if p1fw is not None:
         app_bin_fd, gnss_bin_fd = extract_fw_files(p1fw)
+
+        if args.p1fw_mode is None:
+            args.p1fw_mode = ('gnss', 'app')
+
+        if 'app' not in args.p1fw_mode:
+            app_bin_fd = None
+        if 'gnss' not in args.p1fw_mode:
+            gnss_bin_fd = None
 
     if gnss_bin_fd is not None:
         if gnss_bin_path is not None:
@@ -341,19 +360,23 @@ def main():
     elif gnss_bin_path is not None:
         gnss_bin_fd = open(gnss_bin_path, 'rb')
 
-    if gnss_bin_fd:
-        print('Upgrading GNSS...')
-        if not Upgrade(port_name, gnss_bin_fd, UpgradeType.GNSS, should_send_reboot):
-            sys.exit(2)
-
     if app_bin_fd is not None:
         if app_bin_path is not None:
             print('Ignoring provided application bin path, as p1fw path was provided.')
     elif app_bin_path is not None:
         app_bin_fd = open(app_bin_path, 'rb')
 
-    if app_bin_fd:
-        print('Upgrading App...')
+    if gnss_bin_fd is not None:
+        print('Upgrading GNSS firmware...')
+        if not Upgrade(port_name, gnss_bin_fd, UpgradeType.GNSS, should_send_reboot,
+                       wait_for_reboot=app_bin_fd is not None):
+            sys.exit(2)
+
+    if app_bin_fd is not None:
+        if gnss_bin_fd is not None:
+            print('')
+
+        print('Upgrading application firmware...')
         if not Upgrade(port_name, app_bin_fd, UpgradeType.APP, should_send_reboot):
             sys.exit(2)
 
