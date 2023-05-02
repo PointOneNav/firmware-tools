@@ -368,7 +368,7 @@ Update only the application software (not common):
                              "When using a .bin file, this argument is required to specify the type of FILE.")
 
     device = parser.add_argument_group('Device Options')
-    device.add_argument('--port', type=str, default='/dev/ttyUSB0', help="The serial port of the device.")
+    device.add_argument('--port', type=str, default='/dev/ttyUSB1', help="The serial port of the device.")
 
     advanced = parser.add_argument_group('Advanced Options')
     advanced.add_argument('--gnss', type=str, metavar="FILE", default=None,
