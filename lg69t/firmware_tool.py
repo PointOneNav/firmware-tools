@@ -229,8 +229,12 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
             if should_send_reboot:
                 # Send a no-op reset request message and wait for a response. This won't actually restart the device,
                 # it just waits for it to start on its own after the update completes.
+                #
+                # Before we send the request, we first give the software a couple seconds to start up and be ready to
+                # handle the request.
                 print('Waiting for software to start...')
-                if send_reboot(ser, reboot_flag=0):
+                time.sleep(2.0)
+                if send_reboot(ser, reboot_flag=0, timeout=3.0):
                     print('Device rebooted.')
                 else:
                     print('Timed out waiting for device. Please reboot the device manually.')
