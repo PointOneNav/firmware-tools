@@ -181,21 +181,20 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
         if should_send_reboot:
             print('Rebooting the device...')
             if not send_reboot(ser):
-                print('Reboot Command Failed')
-                return False
+                print('Timed out waiting for reboot command response. Waiting for automatic reboot.')
             else:
-                print('Reboot Command Success')
+                print('Reboot command accepted. Waiting for reboot.')
         else:
             print('Please reboot the device...')
 
         # Note that the reboot command can take over 5 seconds to kick in.
         if not synchronize(ser):
-            print('Sync Timed Out')
+            print('Reboot sync timed out. Please reboot the device and try again.')
             return False
         else:
-            print('Sync Success')
+            print('Sync successful.')
 
-        print('Sending Firmware Address')
+        print('Sending firmware address.')
         ser.write(encode_message(
             class_id, MSG_ID_FIRMWARE_ADDRESS, b'\x00' * 4))
         if not get_response(class_id, MSG_ID_FIRMWARE_ADDRESS, ser):
@@ -203,7 +202,7 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
 
         firmware_data = bin_file.read()
 
-        print('Sending Firmware Info')
+        print('Sending firmware info.')
         if upgrade_type == UpgradeType.GNSS:
             ser.write(encode_gnss_info(firmware_data))
         else:
@@ -211,15 +210,15 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
         if not get_response(class_id, MSG_ID_FIRMWARE_INFO, ser):
             return False
 
-        print('Sending Upgrade Start and Flash Erase (takes 30 seconds)')
+        print('Sending upgrade start and flash erase (takes 30 seconds)...')
         ser.write(encode_message(
             class_id, MSG_ID_START_UPGRADE, b''))
         if not get_response(class_id, MSG_ID_START_UPGRADE, ser):
             return False
 
-        print('Sending Data')
+        print('Sending data...')
         if send_firmware(ser, class_id, firmware_data) is True:
-            print('Update Success')
+            print('Update successful.')
             if should_send_reboot:
                 # Send a no-op reset request message and wait for a response. This won't actually restart the device,
                 # it just waits for it to start on its own after the update completes.
