@@ -337,46 +337,107 @@ def main():
         epilog="""\
 EXAMPLE USAGE
 
-Update the application software and GNSS receiver firmware from a Point One
-.p1fw firmware file (recommended):
-    %(command)s --p1fw quectel-lg69t-am.0.17.2.p1fw
-
-Update only the application software:
-    %(command)s --p1fw quectel-lg69t-am.0.17.2.p1fw --p1fw-mode app
+Update the all software/firmware from a Point One .p1fw firmware file
+(recommended):
+    %(command)s quectel-lg69t-am.0.17.2.p1fw
 
 Specify the serial port of the device on your computer:
-    %(command)s --port /dev/ttyUSB6 --p1fw quectel-lg69t-am.0.17.2.p1fw
+    %(command)s --port /dev/ttyUSB6 quectel-lg69t-am.0.17.2.p1fw
+
+Display the current software/firmware versions on your device:
+    %(command)s --show
+
+Update only the application software (not common):
+    %(command)s --type app quectel-lg69t-am.0.17.2.p1fw
 """ % {'command': execute_command})
 
-    parser.add_argument('--p1fw', type=str, metavar="FILE", default=None,
-                        help="The path to the .p1fw file to be loaded.")
-    parser.add_argument('--p1fw-mode', type=str, metavar="MODE", action='append', choices=('gnss', 'app'),
-                        help="The type of update to perform when using a .p1fw file: gnss, app. May be specified "
-                             "multiple times. For example: --p1fw-mode=gnss --p1fw-mode=app (default)")
-    parser.add_argument('--gnss', type=str, metavar="FILE", default=None,
-                        help="The path to the GNSS (Teseo) firmware file to be loaded.")
-    parser.add_argument('--app', type=str, metavar="FILE", default=None,
-                        help="The path to the application firmware file to be loaded.")
-    parser.add_argument('--port', type=str, default='/dev/ttyUSB0', help="The serial port of the device.")
+    parser.add_argument('file', type=str, metavar="FILE", nargs='?',
+                        help="The path to the .p1fw or .bin firmware file to be loaded.")
+
     parser.add_argument('-f', '--force', action='store_true',
                         help="Update the firmware, even if the current version matches the desired version.")
     parser.add_argument('-m', '--manual-reboot', action='store_true',
-                        help="Don't try to send a software reboot. User must manually reset the board.")
+                        help="Don't try to send a software reboot. User must manually reset the device.")
+    parser.add_argument('-s', '--show', action='store_true',
+                        help="Display the current software versions on the device and exit.")
+    parser.add_argument('-t', '--type', type=str, metavar="TYPE", action='append', choices=('gnss', 'app'),
+                        help="The type of update to perform: gnss, app. When using a .p1fw file, this option may be "
+                             "specified multiple times to perform multiple updates at once. For example: "
+                             "--mode=gnss --mode=app. By default, all updates will be performed.\n"
+                             "\n"
+                             "When using a .bin file, this argument is required to specify the type of FILE.")
+
+    device = parser.add_argument_group('Device Options')
+    device.add_argument('--port', type=str, default='/dev/ttyUSB0', help="The serial port of the device.")
+
+    advanced = parser.add_argument_group('Advanced Options')
+    advanced.add_argument('--gnss', type=str, metavar="FILE", default=None,
+                          help="The path to the GNSS (Teseo) firmware .bin file to be loaded.")
+    advanced.add_argument('--app', type=str, metavar="FILE", default=None,
+                          help="The path to the application firmware .bin file to be loaded.")
 
     args = parser.parse_args()
 
     port_name = args.port
-    p1fw_path = args.p1fw
-    gnss_bin_path = args.gnss
-    app_bin_path = args.app
     should_send_reboot = not args.manual_reboot
 
-    if p1fw_path is None and app_bin_path is None and gnss_bin_path is None:
-        print('You must specify p1fw file, gnss file, or app file to upgrade.')
-        sys.exit(1)
+    # Show software versions and exit.
+    if args.show:
+        with Serial(port_name, baudrate=460800) as ser:
+            version_info = query_version_info(ser, timeout=2.0)
+            if version_info is None:
+                print('Version query timed out.')
+                sys.exit(1)
+            else:
+                print(f'FusionEngine: {version_info.engine_version_str}')
+                print(f'OS: {version_info.hw_version_str}')
+                print(f'GNSS Receiver: {version_info.rx_version_str}')
+        sys.exit(0)
 
-    print(f"Starting upgrade on device {port_name}.")
+    # Parse input file options.
+    p1fw_path = None
+    gnss_bin_path = None
+    app_bin_path = None
+    if args.file is None:
+        if args.gnss is not None:
+            gnss_bin_path = args.gnss
 
+        if args.app is not None:
+            app_bin_path = args.app
+
+        if gnss_bin_path is None and app_bin_path is None:
+            print('You must specify an input filename.')
+            sys.exit(1)
+    else:
+        if args.gnss is not None or args.app is not None:
+            print('You cannot specify both FILE and --gnss/--app.')
+            sys.exit(1)
+
+        ext = os.path.splitext(args.file)[1]
+        if ext == '.p1fw':
+            p1fw_path = args.file
+            if args.type is None:
+                args.type = ('gnss', 'app')
+        elif ext == '.bin':
+            if args.type is None:
+                print('You must specify --type when using a .bin file.')
+                sys.exit(1)
+            elif len(args.type) != 1:
+                print('You may only specify a single --type when using a .bin file.')
+                sys.exit(1)
+            else:
+                if args.type[0] == 'gnss':
+                    gnss_bin_path = args.file
+                elif args.type[0] == 'app':
+                    app_bin_path = args.file
+                else:
+                    print('Unrecognized file type.')
+                    sys.exit(1)
+        else:
+            print('Unrecognized file type.')
+            sys.exit(1)
+
+    # Open the input files.
     p1fw = None
     app_bin_fd = None
     gnss_bin_fd = None
@@ -399,12 +460,9 @@ Specify the serial port of the device on your computer:
     if p1fw is not None:
         app_bin_fd, gnss_bin_fd, info_json = extract_fw_files(p1fw)
 
-        if args.p1fw_mode is None:
-            args.p1fw_mode = ('gnss', 'app')
-
-        if 'app' not in args.p1fw_mode:
+        if 'app' not in args.type:
             app_bin_fd = None
-        if 'gnss' not in args.p1fw_mode:
+        if 'gnss' not in args.type:
             gnss_bin_fd = None
     else:
         info_json = {}
@@ -425,6 +483,8 @@ Specify the serial port of the device on your computer:
         print('Error: Nothing to do.')
         sys.exit(1)
 
+    # Perform the software update.
+    print(f"Starting upgrade on device {port_name}.")
     with Serial(port_name, baudrate=460800) as ser:
         # If we have version information from a .p1fw file, query the software versions on the device and skip
         # unnecessary updates. If the device is not running, this query will fail and we'll go ahead and update
