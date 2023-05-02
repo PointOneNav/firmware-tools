@@ -363,10 +363,10 @@ def main():
                     p1fw = ZipFile(p1fw_path, 'r')
                 except:
                     print('Provided path does not lead to a zip file or a directory.')
-                    sys.exit(2)
+                    sys.exit(1)
         else:
             print('Provided path %s not found.' % p1fw_path)
-            sys.exit(2)
+            sys.exit(1)
 
     if p1fw is not None:
         app_bin_fd, gnss_bin_fd = extract_fw_files(p1fw)
@@ -390,6 +390,10 @@ def main():
             print('Ignoring provided application bin path, as p1fw path was provided.')
     elif app_bin_path is not None:
         app_bin_fd = open(app_bin_path, 'rb')
+
+    if gnss_bin_fd is None and app_bin_fd is None:
+        print('Error: Nothing to do.')
+        sys.exit(1)
 
     with Serial(port_name, baudrate=460800) as ser:
         if gnss_bin_fd is not None:
