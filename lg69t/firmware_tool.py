@@ -186,81 +186,80 @@ class UpgradeType(Enum):
     GNSS = auto()
 
 
-def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType, should_send_reboot: bool,
+def Upgrade(ser: Serial, bin_file: typing.BinaryIO, upgrade_type: UpgradeType, should_send_reboot: bool,
             wait_for_reboot: bool = False):
     class_id = {
         UpgradeType.APP: CLASS_APP,
         UpgradeType.GNSS: CLASS_GNSS,
     }[upgrade_type]
 
-    with Serial(port_name, baudrate=460800) as ser:
+    if should_send_reboot:
+        print('Rebooting the device...')
+
+        # Send a FusionEngine reboot request with a reasonably short timeout. If the software is running, this
+        # should take effect right away. If the device is not running (halted, software corrupted, etc.), this will
+        # timeout and fall through to synchronization, which waits for the bootloader. When that happens, either:
+        # 1. That will eventually timeout too and the process will fail
+        # 2. If the device is running but the software is stuck, the device should trigger an internal watchdog and
+        #    reset on its own before sync times out (typically 3 seconds)
+        if not send_reboot(ser, timeout=2.0):
+            print('Timed out waiting for reboot command response. Waiting for automatic reboot.')
+        else:
+            print('Reboot command accepted. Waiting for reboot.')
+    else:
+        print('Please reboot the device...')
+
+    # Note that the reboot command can take over 5 seconds to kick in.
+    if not synchronize(ser, timeout=10.0):
+        print('Reboot sync timed out. Please reboot the device and try again.')
+        return False
+    else:
+        print('Sync successful.')
+
+    print('Sending firmware address.')
+    ser.write(encode_message(
+        class_id, MSG_ID_FIRMWARE_ADDRESS, b'\x00' * 4))
+    if not get_response(class_id, MSG_ID_FIRMWARE_ADDRESS, ser):
+        return False
+
+    firmware_data = bin_file.read()
+
+    print('Sending firmware info.')
+    if upgrade_type == UpgradeType.GNSS:
+        ser.write(encode_gnss_info(firmware_data))
+    else:
+        ser.write(encode_app_info(firmware_data))
+    if not get_response(class_id, MSG_ID_FIRMWARE_INFO, ser):
+        return False
+
+    print('Sending upgrade start and flash erase (takes 30 seconds)...')
+    ser.write(encode_message(
+        class_id, MSG_ID_START_UPGRADE, b''))
+    if not get_response(class_id, MSG_ID_START_UPGRADE, ser):
+        return False
+
+    print('Sending data...')
+    if send_firmware(ser, class_id, firmware_data) is True:
+        print('Update successful.')
         if should_send_reboot:
-            print('Rebooting the device...')
-
-            # Send a FusionEngine reboot request with a reasonably short timeout. If the software is running, this
-            # should take effect right away. If the device is not running (halted, software corrupted, etc.), this will
-            # timeout and fall through to synchronization, which waits for the bootloader. When that happens, either:
-            # 1. That will eventually timeout too and the process will fail
-            # 2. If the device is running but the software is stuck, the device should trigger an internal watchdog and
-            #    reset on its own before sync times out (typically 3 seconds)
-            if not send_reboot(ser, timeout=2.0):
-                print('Timed out waiting for reboot command response. Waiting for automatic reboot.')
+            # Send a no-op reset request message and wait for a response. This won't actually restart the device,
+            # it just waits for it to start on its own after the update completes.
+            #
+            # Before we send the request, we first give the software a couple seconds to start up and be ready to
+            # handle the request.
+            print('Waiting for software to start...')
+            time.sleep(2.0)
+            if send_reboot(ser, reboot_flag=0, timeout=3.0):
+                print('Device rebooted.')
             else:
-                print('Reboot command accepted. Waiting for reboot.')
-        else:
-            print('Please reboot the device...')
-
-        # Note that the reboot command can take over 5 seconds to kick in.
-        if not synchronize(ser, timeout=10.0):
-            print('Reboot sync timed out. Please reboot the device and try again.')
-            return False
-        else:
-            print('Sync successful.')
-
-        print('Sending firmware address.')
-        ser.write(encode_message(
-            class_id, MSG_ID_FIRMWARE_ADDRESS, b'\x00' * 4))
-        if not get_response(class_id, MSG_ID_FIRMWARE_ADDRESS, ser):
-            return False
-
-        firmware_data = bin_file.read()
-
-        print('Sending firmware info.')
-        if upgrade_type == UpgradeType.GNSS:
-            ser.write(encode_gnss_info(firmware_data))
-        else:
-            ser.write(encode_app_info(firmware_data))
-        if not get_response(class_id, MSG_ID_FIRMWARE_INFO, ser):
-            return False
-
-        print('Sending upgrade start and flash erase (takes 30 seconds)...')
-        ser.write(encode_message(
-            class_id, MSG_ID_START_UPGRADE, b''))
-        if not get_response(class_id, MSG_ID_START_UPGRADE, ser):
-            return False
-
-        print('Sending data...')
-        if send_firmware(ser, class_id, firmware_data) is True:
-            print('Update successful.')
-            if should_send_reboot:
-                # Send a no-op reset request message and wait for a response. This won't actually restart the device,
-                # it just waits for it to start on its own after the update completes.
-                #
-                # Before we send the request, we first give the software a couple seconds to start up and be ready to
-                # handle the request.
-                print('Waiting for software to start...')
-                time.sleep(2.0)
-                if send_reboot(ser, reboot_flag=0, timeout=3.0):
-                    print('Device rebooted.')
-                else:
-                    print('Timed out waiting for device. Please reboot the device manually.')
-                    if wait_for_reboot:
-                        input('Press any key to continue...')
-            else:
-                print('Please reboot the device...')
+                print('Timed out waiting for device. Please reboot the device manually.')
                 if wait_for_reboot:
                     input('Press any key to continue...')
-            return True
+        else:
+            print('Please reboot the device...')
+            if wait_for_reboot:
+                input('Press any key to continue...')
+        return True
 
 
 def print_bytes(byte_data):
@@ -392,19 +391,20 @@ def main():
     elif app_bin_path is not None:
         app_bin_fd = open(app_bin_path, 'rb')
 
-    if gnss_bin_fd is not None:
-        print('Upgrading GNSS firmware...')
-        if not Upgrade(port_name, gnss_bin_fd, UpgradeType.GNSS, should_send_reboot,
-                       wait_for_reboot=app_bin_fd is not None):
-            sys.exit(2)
-
-    if app_bin_fd is not None:
+    with Serial(port_name, baudrate=460800) as ser:
         if gnss_bin_fd is not None:
-            print('')
+            print('Upgrading GNSS firmware...')
+            if not Upgrade(ser, gnss_bin_fd, UpgradeType.GNSS, should_send_reboot,
+                           wait_for_reboot=app_bin_fd is not None):
+                sys.exit(2)
 
-        print('Upgrading application firmware...')
-        if not Upgrade(port_name, app_bin_fd, UpgradeType.APP, should_send_reboot):
-            sys.exit(2)
+        if app_bin_fd is not None:
+            if gnss_bin_fd is not None:
+                print('')
+
+            print('Upgrading application firmware...')
+            if not Upgrade(ser, app_bin_fd, UpgradeType.APP, should_send_reboot):
+                sys.exit(2)
 
 
 if __name__ == '__main__':
