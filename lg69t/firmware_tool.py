@@ -328,7 +328,26 @@ def extract_fw_files(p1fw):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    execute_command = os.path.basename(sys.executable)
+    if execute_command.startswith('python'):
+        execute_command += ' ' + os.path.basename(__file__)
+
+    parser = argparse.ArgumentParser(
+        description="Update the firmware on a Point One LG69T device.",
+        epilog="""\
+EXAMPLE USAGE
+
+Update the application software and GNSS receiver firmware from a Point One
+.p1fw firmware file (recommended):
+    %(command)s --p1fw quectel-lg69t-am.0.17.2.p1fw
+
+Update only the application software:
+    %(command)s --p1fw quectel-lg69t-am.0.17.2.p1fw --p1fw-mode app
+
+Specify the serial port of the device on your computer:
+    %(command)s --port /dev/ttyUSB6 --p1fw quectel-lg69t-am.0.17.2.p1fw
+""" % {'command': execute_command})
+
     parser.add_argument('--p1fw', type=str, metavar="FILE", default=None,
                         help="The path to the .p1fw file to be loaded.")
     parser.add_argument('--p1fw-mode', type=str, metavar="MODE", action='append', choices=('gnss', 'app'),
