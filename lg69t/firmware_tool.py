@@ -180,7 +180,14 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
     with Serial(port_name, baudrate=460800) as ser:
         if should_send_reboot:
             print('Rebooting the device...')
-            if not send_reboot(ser):
+
+            # Send a FusionEngine reboot request with a reasonably short timeout. If the software is running, this
+            # should take effect right away. If the device is not running (halted, software corrupted, etc.), this will
+            # timeout and fall through to synchronization, which waits for the bootloader. When that happens, either:
+            # 1. That will eventually timeout too and the process will fail
+            # 2. If the device is running but the software is stuck, the device should trigger an internal watchdog and
+            #    reset on its own before sync times out (typically 3 seconds)
+            if not send_reboot(ser, timeout=2.0):
                 print('Timed out waiting for reboot command response. Waiting for automatic reboot.')
             else:
                 print('Reboot command accepted. Waiting for reboot.')
@@ -188,7 +195,7 @@ def Upgrade(port_name: str, bin_file: typing.BinaryIO, upgrade_type: UpgradeType
             print('Please reboot the device...')
 
         # Note that the reboot command can take over 5 seconds to kick in.
-        if not synchronize(ser):
+        if not synchronize(ser, timeout=10.0):
             print('Reboot sync timed out. Please reboot the device and try again.')
             return False
         else:
