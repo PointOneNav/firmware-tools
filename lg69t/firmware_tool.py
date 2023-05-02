@@ -66,6 +66,12 @@ def _send_fe_and_wait(ser: Serial, request: MessagePayload, expected_response_ty
     return None
 
 
+def query_version_info(ser: Serial, timeout: float = 2.0) -> VersionInfoMessage:
+    return _send_fe_and_wait(ser, request=MessageRequest(MessageType.VERSION_INFO),
+                             expected_response_type=MessageType.VERSION_INFO,
+                             timeout=timeout, repeat_interval=0.5)
+
+
 def send_reboot(ser: Serial, timeout: float = 10.0, reboot_flag: int = ResetRequest.REBOOT_NAVIGATION_PROCESSOR) \
         -> bool:
     response = _send_fe_and_wait(ser, request=ResetRequest(reboot_flag),
@@ -267,6 +273,7 @@ def print_bytes(byte_data):
         [f'0x{c:02X}' for c in byte_data]
     ))
 
+
 def extract_fw_files(p1fw):
     app_bin_fd = None
     gnss_bin_fd = None
@@ -317,7 +324,7 @@ def extract_fw_files(p1fw):
         sys.exit(1)
 
     print('GNSS and application firmware files found in given p1fw path. Will use these files to upgrade.')
-    return app_bin_fd, gnss_bin_fd
+    return app_bin_fd, gnss_bin_fd, info_json
 
 
 def main():
@@ -332,6 +339,8 @@ def main():
     parser.add_argument('--app', type=str, metavar="FILE", default=None,
                         help="The path to the application firmware file to be loaded.")
     parser.add_argument('--port', type=str, default='/dev/ttyUSB0', help="The serial port of the device.")
+    parser.add_argument('-f', '--force', action='store_true',
+                        help="Update the firmware, even if the current version matches the desired version.")
     parser.add_argument('-m', '--manual-reboot', action='store_true',
                         help="Don't try to send a software reboot. User must manually reset the board.")
 
@@ -369,7 +378,7 @@ def main():
             sys.exit(1)
 
     if p1fw is not None:
-        app_bin_fd, gnss_bin_fd = extract_fw_files(p1fw)
+        app_bin_fd, gnss_bin_fd, info_json = extract_fw_files(p1fw)
 
         if args.p1fw_mode is None:
             args.p1fw_mode = ('gnss', 'app')
@@ -378,6 +387,8 @@ def main():
             app_bin_fd = None
         if 'gnss' not in args.p1fw_mode:
             gnss_bin_fd = None
+    else:
+        info_json = {}
 
     if gnss_bin_fd is not None:
         if gnss_bin_path is not None:
@@ -396,19 +407,45 @@ def main():
         sys.exit(1)
 
     with Serial(port_name, baudrate=460800) as ser:
-        if gnss_bin_fd is not None:
-            print('Upgrading GNSS firmware...')
-            if not Upgrade(ser, gnss_bin_fd, UpgradeType.GNSS, should_send_reboot,
-                           wait_for_reboot=app_bin_fd is not None):
-                sys.exit(2)
+        # If we have version information from a .p1fw file, query the software versions on the device and skip
+        # unnecessary updates. If the device is not running, this query will fail and we'll go ahead and update
+        # everything.
+        version_info = None
+        if info_json is not None:
+            print('Checking current software version.')
+            version_info = query_version_info(ser, timeout=2.0)
+            if version_info is not None:
+                print(f'FusionEngine: {version_info.engine_version_str}')
+                print(f'OS: {version_info.hw_version_str}')
+                print(f'GNSS Receiver: {version_info.rx_version_str}')
 
+        # Update the GNSS receiver.
+        if gnss_bin_fd is not None:
+            if (version_info is not None and
+                version_info.rx_version_str == info_json.get('gnss_receiver', {}).get('version', "UNKNOWN") and
+                not args.force):
+                print('GNSS firmware already up to date (%s). Skipping.' % version_info.rx_version_str)
+                gnss_bin_fd = None
+            else:
+                print('Upgrading GNSS firmware...')
+                if not Upgrade(ser, gnss_bin_fd, UpgradeType.GNSS, should_send_reboot,
+                               wait_for_reboot=app_bin_fd is not None):
+                    sys.exit(2)
+
+        # Update the application software.
         if app_bin_fd is not None:
+            # If we did a GNSS update above, print a line break to separate the print statements for this update.
             if gnss_bin_fd is not None:
                 print('')
 
-            print('Upgrading application firmware...')
-            if not Upgrade(ser, app_bin_fd, UpgradeType.APP, should_send_reboot):
-                sys.exit(2)
+            if (version_info is not None and
+                version_info.engine_version_str == info_json.get('fusion_engine', {}).get('version', "UNKNOWN") and
+                not args.force):
+                print('Application software already up to date (%s). Skipping.' % version_info.engine_version_str)
+            else:
+                print('Upgrading application software...')
+                if not Upgrade(ser, app_bin_fd, UpgradeType.APP, should_send_reboot):
+                    sys.exit(2)
 
 
 if __name__ == '__main__':
