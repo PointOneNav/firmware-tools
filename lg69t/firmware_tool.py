@@ -209,7 +209,7 @@ def Upgrade(ser: Serial, bin_file: typing.BinaryIO, upgrade_type: UpgradeType, s
         # 2. If the device is running but the software is stuck, the device should trigger an internal watchdog and
         #    reset on its own before sync times out (typically 3 seconds)
         if not send_reboot(ser, timeout=2.0):
-            print('Timed out waiting for reboot command response. Waiting for automatic reboot.')
+            print('Timed out waiting for reboot command response. Waiting for automatic or manual reboot.')
         else:
             print('Reboot command accepted. Waiting for reboot.')
     else:
