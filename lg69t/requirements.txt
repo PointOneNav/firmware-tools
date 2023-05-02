@@ -1,2 +1,2 @@
-fusion-engine-client>=1.15.0
+fusion-engine-client>=1.18.0
 pyserial
