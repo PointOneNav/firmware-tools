@@ -42,27 +42,43 @@ HEADER = b'\xAA'
 TAIL = b'\x55'
 
 
-def send_reboot(ser: Serial, timeout=10.0, reboot_flag=ResetRequest.REBOOT_NAVIGATION_PROCESSOR):
+def _send_fe_and_wait(ser: Serial, request: MessagePayload, expected_response_type: MessageType,
+                      timeout: float = 1.0, repeat_interval: float = 0.5) -> MessagePayload:
+    encoder = FusionEngineEncoder()
+    data = encoder.encode_message(request)
+
+    decoder = FusionEngineDecoder()
     start_time = time.time()
     last_send_time = 0
-    reset_message = ResetRequest(reboot_flag)
-    encoder = FusionEngineEncoder()
-    data = encoder.encode_message(reset_message)
-    decoder = FusionEngineDecoder()
     while time.time() < start_time + timeout:
-        if time.time() > last_send_time + 0.5:
+        # Send the request once immediately, then again every N seconds if we haven't gotten a response.
+        if time.time() > last_send_time + repeat_interval:
             ser.write(data)
-            ser.flush()
             last_send_time = time.time()
+
+        # Read all incoming data and wait for the expected response type.
         messages = decoder.on_data(ser.read_all())
         for header, payload in messages:
-            if header.message_type == CommandResponseMessage.MESSAGE_TYPE:
-                if payload.response == Response.OK:
-                    return True
-                else:
-                    print(f'Reboot Command Rejected: {payload.response}')
-                    return False
-    return False
+            if header.message_type == expected_response_type:
+                return payload
+
+    # Read timed out.
+    return None
+
+
+def send_reboot(ser: Serial, timeout: float = 10.0, reboot_flag: int = ResetRequest.REBOOT_NAVIGATION_PROCESSOR) \
+        -> bool:
+    response = _send_fe_and_wait(ser, request=ResetRequest(reboot_flag),
+                                 expected_response_type=MessageType.COMMAND_RESPONSE,
+                                 timeout=timeout, repeat_interval=0.5)
+    if response is None:
+        return False
+    else:
+        if response.response == Response.OK:
+            return True
+        else:
+            print(f'Reboot command rejected: {response.response}')
+            return False
 
 
 def synchronize(ser: Serial, timeout=10.0):
