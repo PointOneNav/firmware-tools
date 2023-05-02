@@ -42,7 +42,7 @@ HEADER = b'\xAA'
 TAIL = b'\x55'
 
 
-def send_reboot(ser: Serial, timeout=10, reboot_flag=ResetRequest.REBOOT_NAVIGATION_PROCESSOR):
+def send_reboot(ser: Serial, timeout=10.0, reboot_flag=ResetRequest.REBOOT_NAVIGATION_PROCESSOR):
     start_time = time.time()
     last_send_time = 0
     reset_message = ResetRequest(reboot_flag)
@@ -65,7 +65,7 @@ def send_reboot(ser: Serial, timeout=10, reboot_flag=ResetRequest.REBOOT_NAVIGAT
     return False
 
 
-def synchronize(ser: Serial, timeout=10):
+def synchronize(ser: Serial, timeout=10.0):
     start_time = time.time()
     ser.timeout = 0.05
     resp_data = b'\x00\x00\x00\x00'
