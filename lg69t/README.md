@@ -24,14 +24,31 @@ And download the latest firmware package from
 typically `/dev/ttyUSB1` in Linux for P1SDK).
 
 To update the firmware on a device, use the following steps:
+1. Determine the correct serial port name to communicate with UART1 on your device.
+   - In Windows, look for the COM port number of the "Standard COM Port" in Device Manager
+   - In Linux/Mac OS, run `ls -l /dev/ttyUSB*`
+2. Update the device, specifying the correct port and desired software version. The software will be downloaded
+   automatically from https://pointonenav.com.
+
+   For example, to update a device on `/dev/ttyUSB1` using LG69T-AM software version `0.17.2`, run the following:
+   ```
+   python3 firmware_tool.py --port=/dev/ttyUSB1 --release lg69t-am-v0.17.2
+   ```
+
+
+### Updating Using A Downloaded `.p1fw` File
+
+To update the firmware on a device from a locally downloaded file, use the following steps:
 1. Download the latest `.p1fw` firmware file for your device from
    [Point One's Developer Portal](https://pointonenav.com/docs/#standard_dev_kit).
 2. Determine the correct serial port name to communicate with UART1 on your device.
    - In Windows, look for the COM port number of the "Standard COM Port" in Device Manager
    - In Linux/Mac OS, run `ls -l /dev/ttyUSB*`
-3. Perform the update, specifying the correct port (`/dev/ttyUSB1` here) and the path to the downloaded file:
+3. Update the device, specifying the correct port and desired path to the downloaded `.p1fw` file.
+
+   For example, to update a device on `/dev/ttyUSB1` using LG69T-AM firmware version `0.17.2`, run the following:
    ```
-   python3 firmware_tool.py --port=/dev/ttyUSB1 /path/to/quectel-lg69t-am-0.XX.0.p1fw
+   python3 firmware_tool.py --port=/dev/ttyUSB1 /path/to/quectel-lg69t-am-0.17.2.p1fw
    ```
 
 ### Updating Only One Component
@@ -39,7 +56,7 @@ To update the firmware on a device, use the following steps:
 If desired, you can use the `--type` argument to update just one component. For example, to update only the application
 software:
 ```
-python3 firmware_tool.py --port=/dev/ttyUSB1 --type=app /path/to/quectel-lg69t-am-0.XX.0.p1fw
+python3 firmware_tool.py --port=/dev/ttyUSB1 --type=app lg69t-am-v0.17.2
 ```
 
 ### Updating Using `.bin` Files (Not Common)
@@ -47,7 +64,7 @@ python3 firmware_tool.py --port=/dev/ttyUSB1 --type=app /path/to/quectel-lg69t-a
 You can also update the firmware using `.bin` files if needed. This is not common for most applications. 
 
 ```
-python3 firmware_tool.py --port=/dev/ttyUSB1 --typ=app /path/to/quectel-lg69t-am-0.XX.0_upg.bin
+python3 firmware_tool.py --port=/dev/ttyUSB1 --typ=app /path/to/quectel-lg69t-am-0.17.2_upg.bin
 ```
 
 ## Considerations
@@ -66,7 +83,7 @@ To program the bootloader:
 3. Press and hold the `BOOT` button.
 4. Power on the module or release the `RESET` button.
 5. Release the `BOOT` button after the device is powered up.
-6. Run `stm32loader -p /dev/ttyUSB1 -e -w -v -a 0x08000000 quectel-bootloader-A.B.C.bin`
+6. Run `stm32loader -p /dev/ttyUSB1 -e -w -v -a 0x08000000 quectel-bootloader-1.0.4.bin`
    - Specify the correct UART1 serial port for your machine.
 7. Press the `RESET` button to complete the process.
 8. Reload the application software as described in

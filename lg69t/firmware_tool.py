@@ -7,6 +7,8 @@ import struct
 import sys
 import time
 import typing
+import urllib.error
+import urllib.request
 import zlib
 from enum import Enum, auto
 from zipfile import ZipFile
@@ -327,6 +329,36 @@ def extract_fw_files(p1fw):
     return app_bin_fd, gnss_bin_fd, info_json
 
 
+def download_release_file(version: str, output_dir: str = None):
+    filename = f'quectel-{version.replace("-v", ".")}.p1fw'
+
+    if output_dir is None:
+        output_path = filename
+    else:
+        output_path = os.path.join(output_dir, filename)
+
+    if os.path.exists(output_path):
+        print(f'Using existing file: {output_path}')
+    else:
+        print(f'Downloading {filename}...')
+
+        parent_dir = os.path.dirname(output_path)
+        if parent_dir != "":
+            os.makedirs(parent_dir, exist_ok=True)
+
+        url = f'https://s3.amazonaws.com/files.pointonenav.com/quectel/lg69t/{filename}'
+        try:
+            urllib.request.urlretrieve(url, output_path)
+        except urllib.error.HTTPError as e:
+            if e.code in (403, 404):
+                raise ValueError(f"Encountered error downloading {url}. Please check the specified version string.") \
+                    from e
+            else:
+                raise e
+
+    return output_path
+
+
 def main():
     execute_command = os.path.basename(sys.executable)
     if execute_command.startswith('python'):
@@ -337,18 +369,22 @@ def main():
         epilog="""\
 EXAMPLE USAGE
 
-Update the all software/firmware from a Point One .p1fw firmware file
-(recommended):
-    %(command)s quectel-lg69t-am.0.17.2.p1fw
+Download the .p1fw file for the LG69T-AM 0.17.2 release and use that to update
+the software on the device (recommended; requires an internet connection):
+    %(command)s --release lg69t-am-v0.17.2
 
 Specify the serial port of the device on your computer:
-    %(command)s --port /dev/ttyUSB6 quectel-lg69t-am.0.17.2.p1fw
+    %(command)s --port /dev/ttyUSB6 --release lg69t-am-v0.17.2
 
 Display the current software/firmware versions on your device:
     %(command)s --show
 
+Update the software on the device from a downloaded Point One .p1fw firmware
+file (no internet connection required):
+    %(command)s quectel-lg69t-am.0.17.2.p1fw
+
 Update only the application software (not common):
-    %(command)s --type app quectel-lg69t-am.0.17.2.p1fw
+    %(command)s --type app --release lg69t-am-v0.17.2
 """ % {'command': execute_command})
 
     parser.add_argument('file', type=str, metavar="FILE", nargs='?',
@@ -358,6 +394,10 @@ Update only the application software (not common):
                         help="Update the firmware, even if the current version matches the desired version.")
     parser.add_argument('-m', '--manual-reboot', action='store_true',
                         help="Don't try to send a software reboot. User must manually reset the device.")
+    parser.add_argument('-r', '--release', action='store_true',
+                        help="If set, treat FILE as a FusionEngine release version string (e.g., lg69t-am-v0.17.2) and "
+                             "download the corresponding .p1fw file (requires an internet connection). If the file "
+                             "already exists in the working directory, the download will be skipped.")
     parser.add_argument('-s', '--show', action='store_true',
                         help="Display the current software versions on the device and exit.")
     parser.add_argument('-t', '--type', type=str, metavar="TYPE", action='append', choices=('gnss', 'app'),
@@ -399,19 +439,26 @@ Update only the application software (not common):
     gnss_bin_path = None
     app_bin_path = None
     if args.file is None:
-        if args.gnss is not None:
-            gnss_bin_path = args.gnss
-
-        if args.app is not None:
-            app_bin_path = args.app
-
-        if gnss_bin_path is None and app_bin_path is None:
-            print('You must specify an input filename.')
+        if args.release:
+            print('You must specify a release version.')
             sys.exit(1)
+        else:
+            if args.gnss is not None:
+                gnss_bin_path = args.gnss
+
+            if args.app is not None:
+                app_bin_path = args.app
+
+            if gnss_bin_path is None and app_bin_path is None:
+                print('You must specify an input filename.')
+                sys.exit(1)
     else:
         if args.gnss is not None or args.app is not None:
             print('You cannot specify both FILE and --gnss/--app.')
             sys.exit(1)
+
+        if args.release:
+            args.file = download_release_file(args.file)
 
         ext = os.path.splitext(args.file)[1]
         if ext == '.p1fw':
