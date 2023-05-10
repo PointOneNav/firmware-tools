@@ -369,22 +369,23 @@ def main():
         epilog="""\
 EXAMPLE USAGE
 
-Download the .p1fw file for the LG69T-AM 0.17.2 release and use that to update
-the software on the device (recommended; requires an internet connection):
-    %(command)s --release lg69t-am-v0.17.2
+Download the .p1fw file for the LG69T-AM version A.B.C release and use that to
+update the software on the device (recommended; requires an internet
+connection):
+    %(command)s --release lg69t-am-vA.B.C
 
 Specify the serial port of the device on your computer:
-    %(command)s --port /dev/ttyUSB6 --release lg69t-am-v0.17.2
+    %(command)s --port /dev/ttyUSB6 --release lg69t-am-vA.B.C
 
 Display the current software/firmware versions on your device:
     %(command)s --show
 
 Update the software on the device from a downloaded Point One .p1fw firmware
 file (no internet connection required):
-    %(command)s quectel-lg69t-am.0.17.2.p1fw
+    %(command)s quectel-lg69t-am.A.B.C.p1fw
 
 Update only the application software (not common):
-    %(command)s --type app --release lg69t-am-v0.17.2
+    %(command)s --type app --release lg69t-am-vA.B.C
 """ % {'command': execute_command})
 
     parser.add_argument('file', type=str, metavar="FILE", nargs='?',
@@ -395,7 +396,7 @@ Update only the application software (not common):
     parser.add_argument('-m', '--manual-reboot', action='store_true',
                         help="Don't try to send a software reboot. User must manually reset the device.")
     parser.add_argument('-r', '--release', action='store_true',
-                        help="If set, treat FILE as a FusionEngine release version string (e.g., lg69t-am-v0.17.2) and "
+                        help="If set, treat FILE as a FusionEngine release version string (e.g., lg69t-am-vA.B.C) and "
                              "download the corresponding .p1fw file (requires an internet connection). If the file "
                              "already exists in the working directory, the download will be skipped.")
     parser.add_argument('-s', '--show', action='store_true',
