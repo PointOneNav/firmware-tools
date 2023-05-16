@@ -390,7 +390,7 @@ Update only the application software (not common):
                 sys.exit(1)
             else:
                 print(f'FusionEngine: {version_info.engine_version_str}')
-                print(f'OS: {version_info.os_version_str}')
+                print(f'OS: {version_info.fw_version_str}')
                 print(f'GNSS Receiver: {version_info.rx_version_str}')
         sys.exit(0)
 
@@ -495,7 +495,7 @@ Update only the application software (not common):
             version_info = query_version_info(ser, timeout=2.0)
             if version_info is not None:
                 print(f'FusionEngine: {version_info.engine_version_str}')
-                print(f'OS: {version_info.os_version_str}')
+                print(f'OS: {version_info.fw_version_str}')
                 print(f'GNSS Receiver: {version_info.rx_version_str}')
 
         # Update the GNSS receiver.
