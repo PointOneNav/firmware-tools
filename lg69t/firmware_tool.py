@@ -399,6 +399,10 @@ Update only the application software (not common):
                         help="If set, treat FILE as a FusionEngine release version string (e.g., lg69t-am-vA.B.C) and "
                              "download the corresponding .p1fw file (requires an internet connection). If the file "
                              "already exists in the working directory, the download will be skipped.")
+    parser.add_argument('-o', '--output-dir', type=str,
+                        help="The output directory to save the release if the --release flag is set and the "
+                             "corresponding release is downloaded. If the --release flag is not set, this flag will "
+                             "be ignored.")
     parser.add_argument('-s', '--show', action='store_true',
                         help="Display the current software versions on the device and exit.")
     parser.add_argument('-t', '--type', type=str, metavar="TYPE", action='append', choices=('gnss', 'app'),
@@ -459,7 +463,10 @@ Update only the application software (not common):
             sys.exit(1)
 
         if args.release:
-            args.file = download_release_file(args.file)
+            if args.output_dir:
+                args.file = download_release_file(args.file, args.output_dir)
+            else:
+                args.file = download_release_file(args.file)
 
         ext = os.path.splitext(args.file)[1]
         if ext == '.p1fw':
